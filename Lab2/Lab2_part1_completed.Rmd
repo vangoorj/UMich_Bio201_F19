@@ -71,7 +71,7 @@ RStudio is divided into 4 “Panes”: the Source for your scripts and documents
 One of the advantages of using RStudio is that all the information you need to write code is available in a single window. Additionally, with many shortcuts, autocompletion, and highlighting for the major file types you use while developing in R, RStudio will make typing easier and less error-prone.
 
 # What is a research question I would like to ask?
-## ***Is there a statistically significant difference in dietary supplement types or is it more important to just have any dietary supplement?***
+### ***Does participant starting weight impact butyrate production in response to dietry supplements? Or, do dietay supplements behave similarly among people with similar starting wieghts?***
 ```{r}
 
 ```
