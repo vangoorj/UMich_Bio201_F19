@@ -266,6 +266,7 @@ How many values in combined_logical are "TRUE" (as a character) in the following
 num_logical <- c(1, 2, 3, TRUE)
 char_logical <- c("a", "b", "c", TRUE)
 combined_logical <- c(num_logical, char_logical)
+combined_logical
 ```
 
 You’ve probably noticed that objects of different types get converted into a single, shared type within a vector. In R, we call converting objects from one class into another class coercion. These conversions happen according to a hierarchy, whereby some types get preferentially coerced into other types. What is the order of the hierarchy? 
@@ -295,7 +296,8 @@ supplement_sems <- c(
 college_age <- c(18, 19, 20, 21, 19, 20, 21, 17, 19)
 # Confirm this is numeric numeric
 class(college_age)
-# Convert this vector to character: 
+# Convert this vector to character:
+college_age_character <- as.character(college_age) 
 ```
 
 
@@ -303,9 +305,19 @@ class(college_age)
 # Calculate the mean pH for each participant below, round to 2 digits. Evaluate if these values equal.
 
 pH_1 <- c("7.75", "6", "7.5", "8", "7.75")
-
+pH_1 <- as.numeric(pH_1)
+mean(pH_1) # mean pH_1 is 7.4
+pH1_mean <- mean(pH_1)
+round(x = pH1_mean, digits = 2) # rounded pH1_mean is 7.4
+pH1_mean <- round(x = pH1_mean, digits = 2)
+pH1_mean
 pH_2 <- c("8", "7.25", "7.25", "7.75", "7.5", "7.25")
-
+pH_2 <- as.numeric(pH_2)
+mean(pH_2) #mean pH_2 is 7.5
+pH2_mean <- mean(pH_2)
+round(x = pH2_mean, digits = 2) #rounded pH2_mean is 7.5
+pH2_mean <- round(x = pH2_mean, digits = 2)
+pH1_mean == pH2_mean # FALSE rounded mean pH_1 and rounded mean pH_2 are not equal
 ```
 
 -----
