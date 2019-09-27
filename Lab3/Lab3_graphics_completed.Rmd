@@ -7,7 +7,7 @@ output: html_document
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
-knitr::opts_knit$set(root.dir = "~/Documents/UMich_Bio201_F19/Lab3/")
+knitr::opts_knit$set(root.dir = "~/UMich_Bio201_F19/Lab3")
 ```
 
 We always begin by loading the required packages. ggplot2 is included in the tidyverse package, and if not completed earlier, load cowplot. We will use cowplot in addition to ggplot when generating graphics because it simplifies the ggplot default themes to conform to figure standards set by most biological publications. ggplot2 is a plotting package that makes it simple to create complex plots from data in a data frame. It provides a more programmatic interface for specifying what variables to plot, how they are displayed, and general visual properties. Therefore, you only need minimal changes if the underlying data change or if you decide to change from a bar plot to a scatter plot. This helps in creating publication quality plots with minimal amounts of adjustments and tweaking.
@@ -216,15 +216,39 @@ In the section above you created a figure for just the butyrate data. The data f
 ### Homework 3.5
 Recreate the scatter plot from the above for each SCFA. Identify descriptive axis labels, make each plot a different color. Utilize copy and paste to reduce the amount of typing. Assign each figure to a new object. Website with some named ggplot colors: http://sape.inf.usi.ch/quick-reference/ggplot2/colour 
 ```{r}
-plot_ace <- ggplot()
+plot_ace <- ggplot(data = scfa_qc, 
+       mapping = aes(x = participant_id, 
+                     y = acetate_mean_mmol_kg)) +
+    geom_point(color = "violet") +
+    labs(title = "Mean acetate concentrations of individuals",
+         x = "Individuals",
+         y = "Fecal acetate (mmol/kg)") +
+    theme(axis.text.x = element_blank())
+plot_ace
 ```
 
 ```{r}
-plot_but <- ggplot()
+plot_but <- ggplot(data = scfa_qc, 
+       mapping = aes(x = participant_id, 
+                     y = butyrate_mean_mmol_kg)) +
+    geom_point(color = "red") +
+    labs(title = "Mean butyrate concentrations of individuals",
+         x = "Individuals",
+         y = "Fecal butyrate (mmol/kg)") +
+    theme(axis.text.x = element_blank())
+plot_but
 ```
 
 ```{r}
-plot_pro <- ggplot()
+plot_pro <- ggplot(data = scfa_qc, 
+       mapping = aes(x = participant_id, 
+                     y = propionate_mean_mmol_kg)) +
+    geom_point(color = "gold") +
+    labs(title = "Mean propionate concentrations of individuals",
+         x = "Individuals",
+         y = "Fecal propionate (mmol/kg)") +
+    theme(axis.text.x = element_blank())
+plot_pro
 ```
 
 ```{r}
