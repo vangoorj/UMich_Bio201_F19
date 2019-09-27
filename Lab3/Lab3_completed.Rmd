@@ -329,14 +329,20 @@ Import the scfa_wkly data from the Excel file. Complete the following QC measure
 ```{r}
 scfa_wkly_qc <- read_excel("raw_data/SCFA_data.xlsx",
                         sheet = "SCFA_wkly", col_names = TRUE, trim_ws = TRUE, 
-                        na = c("", "NA", "-----"))  %>%
+                        na = c("", "NA", "-----")) %>% 
+  rename_all(tolower) %>% 
+  filter(study_week == "week1" | study_week == "week3" | quantity_compliant == "yes") %>% 
+  mutate(mean_total_scfa = (acetate_mean + butyrate_mean + propionate_mean)) %>% 
+  mutate(median_total_scfa = acetate_median + butyrate_median + propionate_median)
+
+  
 View(scfa_wkly_qc)
 
 ```
 
 Export this curated data frame:
 ```{r}
-write_delim()
+write_delim(scfa_wkly_qc, path = "curated_data/scfa_wkly_qc.txt", delim = "\t")
 ```
 
 
