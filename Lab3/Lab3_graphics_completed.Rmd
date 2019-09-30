@@ -252,7 +252,15 @@ plot_pro
 ```
 
 ```{r}
-plot_tot <- ggplot()
+plot_tot <- ggplot(data = scfa_qc, 
+       mapping = aes(x = participant_id, 
+                     y = mean_total_scfa_mmol_kg)) +
+    geom_point(color = "blue") +
+    labs(title = "Mean total scfa concentrations of individuals",
+         x = "Individuals",
+         y = "Total fecal scfa (mmol/kg)") +
+    theme(axis.text.x = element_blank())
+plot_tot
 ```
 
 
@@ -276,7 +284,7 @@ Subset the data frame for week 1 then week 3 of the study, plot the total SCFA m
 plot_wk1 <- scfa_qc %>%
   filter(study_week == "week1") %>%
   ggplot(aes(x = participant_id, 
-             y = total_mmol_kg)) +
+             y = mean_total_scfa_mmol_kg)) +
     geom_point(color = "black") +
     labs(title = "Week 1",
          x = "Individuals",
@@ -287,7 +295,7 @@ plot_wk1 <- scfa_qc %>%
 plot_wk3 <- scfa_qc %>%
   filter(study_week == "week3") %>%
   ggplot(aes(x = participant_id, 
-             y = total_mmol_kg)) +
+             y = mean_total_scfa_mmol_kg)) +
     geom_point(color = "black") +
     labs(title = "Week 3",
          x = "Individuals",
@@ -308,7 +316,7 @@ The new function added to the plot code here is “facet_wrap”. Open the help 
 plot_f <- scfa_qc %>%
   filter(study_week == "week1" | study_week == "week3") %>%
   ggplot(aes(x = participant_id, 
-             y = total_mmol_kg, 
+             y = mean_total_scfa_mmol_kg, 
              study_week, supplement_consumed, semester)) +
   geom_point(aes(color = study_week)) +
   facet_grid(~study_week) + 
@@ -322,14 +330,26 @@ plot_f
 
 Complete any additional customizations to make the figure easy to read. Compare the facetted figure with the version you generated above where each panel was created manually. What differences in the layout of the figure do you notice? Write your answer in the bold block below:
 
-> ** enter answer here ** 
+> ** The legends are in differnt locations in the facetted figure. There is only one label on the y-axis in the facetted figure rather than it being repeated. The facetted verion can color code weeks without having to specify which color you want each week. ** 
 
 ### Homework 3.6
 Plot the mean butyrate concentration for week 3 versus semester. In this plot, each facet should be one of the supplement types consumed during the study. Modify the plot settings so all labels are descriptive and easy to read. Tip: read the help documentation for facet_grid and modify some of the default arguments. 
 ```{r}
 plot3_6 <- scfa_qc %>%
-  filter() %>%
-  ggplot()
+  filter(study_week == "week3") %>%
+  ggplot(aes(x = semester,
+             y = butyrate_mean_mmol_kg,
+             study_week, supplement_consumed, semester)) + 
+  geom_point(aes(color = supplement_consumed)) +
+  facet_grid(~supplement_consumed) +
+  labs( x = "Semester",
+        y = "Mean fecal butyrate (mmol/kg)") +
+  theme(axis.text.x = element_blank(),
+        legend.position = "none") 
+  
+plot3_6
+  
+  
 ```
 
 # Exporting plots
@@ -354,7 +374,11 @@ ggplot2::ggsave(filename = "facet_plot.tiff",
 ### Homework 3.7
 Export plot 3.6 
 ```{r}
-
+# preferred save method with cowplot
+save_plot(filename = "figures/plot3_6.pdf",
+          plot = plot3_6,
+          nrow = 1, ncol = 1, 
+          base_aspect_ratio = 1.1)
 ```
 
 -----
