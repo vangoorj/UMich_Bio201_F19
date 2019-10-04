@@ -115,7 +115,7 @@ Apply the group and summarise functions to determine the mean concentration of a
 ```{r}
 # write code here
 scfa_data %>% 
-  group_by(participant_id, semester, supplement_consumed) %>% 
+  group_by(participant_id, study_week, supplement_consumed) %>% 
   summarize(mean_butyrate = mean(butyrate_mmol_kg, na.rm = TRUE),
             mean_propionate = mean(propionate_mmol_kg, na.rm = TRUE),
             mean_acetate = mean(acetate_mmol_kg, na.rm = TRUE))
@@ -144,6 +144,12 @@ spread() takes three principal arguments:
 Optional arguments include ‘fill’ which, if included, fills in missing values with the value provided. Use spread() to widen the data frame by study week. Inspect the result, can you determine what happened here? 
 
 ```{r}
+scfa_wkly_qc <- read_delim(file = "/Users/Owner/Documents/UMich_Bio201_F19/Lab3/curated_data/scfa_wkly_qc.txt",
+                        delim = "\t", col_names = TRUE, trim_ws = TRUE, 
+                        na = c("", "NA")) %>%
+  rename_all(tolower)
+View(scfa_wkly_qc)
+
 scfa_wkly_qc %>%
   spread(key = study_week, value = butyrate_mean)
 ```
@@ -206,6 +212,7 @@ We are interested in the average difference of fecal butyrate by supplement type
 delta_butyrate_wide <- butyrate_wide %>% 
     group_by(semester, supplement_consumed) %>% 
   summarize(mean_delta_butyrate = mean(delta_butyrate, na.rm = TRUE))
+head(delta_butyrate_wide)
 ```
 
 Repeat this process for each SCFA. How would you plot your results? 
@@ -214,6 +221,7 @@ Repeat this process for each SCFA. How would you plot your results?
 delta_acetate_wide <- acetate_wide %>% 
     group_by(semester, supplement_consumed) %>% 
   summarize(mean_delta_acetate = mean(delta_acetate, na.rm = TRUE))
+head(delta_acetate_wide)
 ```
 
 ```{r}
@@ -221,6 +229,7 @@ delta_acetate_wide <- acetate_wide %>%
 delta_propionate_wide <- propionate_wide %>% 
     group_by(semester, supplement_consumed) %>% 
   summarize(mean_delta_propionate = mean(delta_propionate, na.rm = TRUE))
+head(delta_propionate_wide)
 ```
 
 ```{r}
@@ -236,8 +245,32 @@ plot_mean_delta_but <- ggplot(data = delta_butyrate_wide,
          y = "Average change in fecal butyrate (mmol/kg)") +
     theme(axis.text.x = element_blank())
 plot_mean_delta_but
+plot_mean_delta_ace <- ggplot(data = delta_acetate_wide, 
+       mapping = aes(x = supplement_consumed, 
+                     y = mean_delta_acetate,
+                     semester, supplement_consumed,
+                     color = supplement_consumed)) +
+    geom_point() +
+    labs(title = "Average change in acetate by supplement consumed",
+         x = "Supplement",
+         y = "Average change in fecal acetate (mmol/kg)") +
+    theme(axis.text.x = element_blank())
+plot_mean_delta_ace
+plot_mean_delta_pro <- ggplot(data = delta_propionate_wide, 
+       mapping = aes(x = supplement_consumed, 
+                     y = mean_delta_propionate,
+                     semester, supplement_consumed,
+                     color = supplement_consumed)) +
+    geom_point() +
+    labs(title = "Average change in propionate by supplement consumed",
+         x = "Supplement",
+         y = "Average change in fecal propionate (mmol/kg)") +
+    theme(axis.text.x = element_blank())
+plot_mean_delta_pro
 
-
+plot_delta_combined <- plot_grid(plot_mean_delta_ace, plot_mean_delta_but, plot_mean_delta_pro,
+          labels = c("A", "B", "C"),
+          nrow = 1, ncol = 3)
 
 ```
 
@@ -264,6 +297,7 @@ n_distinct(propionate_wide$participant_id)
 ```
 
 Execute an inner join and check the results. Check the column names of the resulting data frame. Discuss with your neighbor, what issues do you see? 
+** There are two "week1"s and two "week2"s labeled with x and y rather than the supplement. ** 
 ```{r}
 # execute join
 join1 <- inner_join(acetate_wide, butyrate_wide,
@@ -300,7 +334,12 @@ colnames(join2)
 ```
 
 
-We have joined two of our three data frames, we can use pipes to join the third, and save as a new object. Don't forget to update the column names in the propionate dataframe. Note the types of joins used below, why were these selected? Change the types of joins, how does this effect the results?
+We have joined two of our three data frames, we can use pipes to join the third, and save as a new object. Don't forget to update the column names in the propionate dataframe. Note the types of joins used below, why were these selected?
+The inner join was used between acetate_wide and butyrate wide to exclude any columns with N/As since the number of rows and participants for acetate are very similar to those for butyrate.
+The full join was used to add propionate to butyrate and acetate, becuase the propionate has many more missing values than either butyrate or acetate, so using the full join ensures that large amounts of data will not be excluded even though ther is not a match.
+
+Change the types of joins, how does this effect the results?
+By making all of them  full joins, it increases the number of rows and participants present. By making all of them inner joins, it significantly decreases the number of rows and participants.
 ```{r}
 # rename columns in propionate df 
 propionate_wide <- propionate_wide %>%
@@ -317,6 +356,23 @@ join3 <- inner_join(acetate_wide, butyrate_wide,
 nrow(join3)
 n_distinct(join3$participant_id)
 colnames(join3)
+
+#change join types
+join4 <- full_join(acetate_wide, butyrate_wide,
+                   by = c("participant_id", "semester", "supplement_consumed")) %>%
+  full_join(propionate_wide, 
+            by = c("participant_id", "semester", "supplement_consumed"))
+nrow(join4)
+n_distinct(join4$participant_id)
+colnames(join4)
+
+join5 <- inner_join(acetate_wide, butyrate_wide,
+                   by = c("participant_id", "semester", "supplement_consumed")) %>%
+  inner_join(propionate_wide, 
+            by = c("participant_id", "semester", "supplement_consumed"))
+nrow(join5)
+n_distinct(join5$participant_id)
+colnames(join5)
 ```
 
 ### Homework 4.4  
@@ -324,12 +380,58 @@ colnames(join3)
 Part 1: Update the column names of the three SCFA wide data frames and join to one new data frame called `total_scfas`. Use nrow() and n_distinct() to help you decide the type of join. Calculate the weekly total SCFA for each participant, calculate the difference in total SCFA across weeks.
 ```{r}
 # write code here
+nrow(butyrate_wide)
+n_distinct(butyrate_wide)
+nrow(acetate_wide)
+n_distinct(acetate_wide)
+nrow(propionate_wide)
+n_distinct(propionate_wide)
+#full join becuase each scfa has a different number of rows and participant ids so I don't want to lose any data points
+total_scfas <- full_join(butyrate_wide, acetate_wide, 
+                         by = c ("participant_id", "semester", "supplement_consumed")) %>% 
+              full_join(propionate_wide,
+                        by = c ("participant_id", "semester", "supplement_consumed")) %>% 
+  mutate(total_scfa_wk1 = but_wk1 + ace_wk1 + pro_wk1,
+         total_scfa_wk3 = but_wk3 + ace_wk3 + pro_wk3,
+         delta_total_scfa = total_scfa_wk3 - total_scfa_wk1)
+
 
 ```
 
 Part 2: Plot the change in total SCFA for each supplement, faceting for each semester. Clean up the axes and labels. Extra challenge: Can you use pipes to execute Parts 1 and 2 as one long command?
 ```{r}
 # write code here
+plot_total_scfas <- ggplot(data = total_scfas, 
+       mapping = aes(x = delta_total_scfa, 
+                     y = supplement_consumed,
+                     semester,
+                     color = supplement_consumed)) +
+    geom_point() +
+    labs(title = "Change in Total SCFA from Week 1 to Week 3",
+         x = "Change in Total SCFA",
+         y = "Supplement Consumed") +
+    theme(legend.position = "none")
+plot_total_scfas
+
+#piping Part1&2 together
+
+  plot_total_scfas <- ggplot(data = total_scfas <- full_join(butyrate_wide, acetate_wide,
+                         by = c ("participant_id", "semester", "supplement_consumed")) %>% 
+              full_join(propionate_wide,
+                        by = c ("participant_id", "semester", "supplement_consumed")) %>% 
+  mutate(total_scfa_wk1 = but_wk1 + ace_wk1 + pro_wk1,
+         total_scfa_wk3 = but_wk3 + ace_wk3 + pro_wk3,
+         delta_total_scfa = total_scfa_wk3 - total_scfa_wk1), 
+       mapping = aes(x = delta_total_scfa, 
+                     y = supplement_consumed,
+                     semester,
+                     color = supplement_consumed)) +
+    geom_point() +
+    labs(title = "Change in Total SCFA from Week 1 to Week 3",
+         x = "Change in Total SCFA",
+         y = "Supplement Consumed") +
+    theme(legend.position = "none")
+plot_total_scfas
 
 ```
 
@@ -353,7 +455,7 @@ total_scfas %>%
   rename(acetate = delta_acetate,
          butyrate = delta_butyrate, 
          propionate = delta_propionate, 
-         total = delta_total) %>% 
+         total = delta_total_scfa) %>% 
   gather(key = SCFA, value = wkly_diff,
          acetate, butyrate, propionate, total)
 ```
@@ -363,7 +465,7 @@ Let's repeat this for indivual week measurements, instead of the difference.
 total_scfas %>%
   select(-starts_with("delta_")) %>%
   gather(key = SCFA_wk, value = SCFA_concentration,
-         ace_wk1, ace_wk3, but_wk1, but_wk3, pro_wk1, pro_wk3, total_wk1, total_wk3)
+         ace_wk1, ace_wk3, but_wk1, but_wk3, pro_wk1, pro_wk3, total_scfa_wk1, total_scfa_wk3)
 ```
 
 Notice that the variable in the SCFA_wk indicate the SCFA and the study week, we want these information as separate columns. Remember it took us multiple steps to generate the wide data frame, so it will require multiple steps, to recreate the long data frame with the transformed data. 
@@ -375,24 +477,50 @@ ace_long <- total_scfas %>%
   rename(week1 = ace_wk1,
          week3 = ace_wk3) %>% #convert weeks to consistent format for join
   gather(key = study_week, value = acetate, week1, week3)
+ace_long
 ```
 
 ### Homework 4.5 
 ```{r}
 # copy+paste and edit code here to create but_long
-but_long <-
+but_long <- total_scfas %>%
+  select(-starts_with("delta_"), -starts_with("ace_"), -starts_with("pro_"), -starts_with("total")) %>% 
+  rename(week1 = but_wk1,
+         week3 = but_wk3) %>% 
+  gather(key = study_week, value = butyrate, week1, week3)
+but_long
   
 ```
 
 ```{r}
 # copy+paste and edit code here to create pro_long
-pro_long <- 
+pro_long <- total_scfas %>%
+  select(-starts_with("delta_"), -starts_with("but_"), -starts_with("ace_"), -starts_with("total")) %>% 
+  rename(week1 = pro_wk1,
+         week3 = pro_wk3) %>% 
+  gather(key = study_week, value = propionate, week1, week3)
+pro_long
   
 ```
 
 Check the dimensions of the three long data frames you just created, select the appropriate type of join, and create a new data frame called scfa_long. 
 ```{r}
-scfa_long <- 
+nrow(but_long)
+n_distinct(but_long$participant_id)
+colnames(but_long)
+nrow(ace_long)
+n_distinct(ace_long$participant_id)
+colnames(ace_long)
+nrow(pro_long)
+n_distinct(pro_long$participant_id)
+colnames(pro_long)
+#both full joins because column dimensions are the same
+
+scfa_long <- full_join(but_long, ace_long, 
+                         by = c ("participant_id", "semester", "supplement_consumed", "study_week")) %>% 
+              full_join(pro_long,
+                        by = c ("participant_id", "semester", "supplement_consumed", "study_week")) 
+View(scfa_long)
 ```
 
 Remember we want one column for study week and one column for the SCFA measurements, so we need to use gather() one more time.
@@ -406,6 +534,9 @@ Now that the data are in long format, calculate the weekly mean for each SCFA pe
 ```{r}
 # copy+paste and edit code here
 wkly_means <- scfa_long %>%
+  group_by(study_week, scfa, semester, supplement_consumed) %>% 
+  summarize(mean_scfa = mean(concentration_mmol_kg, na.rm = TRUE))
+View(wkly_means)
   
 ```
 
@@ -431,16 +562,47 @@ Even though we reduced our total numbers of data points (with calculations and f
 
 Save the wide data frame to the curated data directory.
 ```{r}
-write_delim(total_scfas, path = "Lab4/curated_data/total_scfas_wide.txt", delim = "\t")
+write_delim(total_scfas, path = "/Users/Owner/Documents/UMich_Bio201_F19/Lab4/curated_data/total_scfas_wide.txt", delim = "\t")
 ```
 
 Save the other data frames and plots generated today. Be sure they are placed in the appropriate directories (folders):
 ```{r}
 # for data frames:
-write_delim()
+write_delim(ace_long,  path = "/Users/Owner/Documents/UMich_Bio201_F19/Lab4/curated_data/ace_long.txt", delim = "\t")
+write_delim(acetate_wide,  path = "/Users/Owner/Documents/UMich_Bio201_F19/Lab4/curated_data/acetate_wide.txt", delim = "\t")
+write_delim(but_long,  path = "/Users/Owner/Documents/UMich_Bio201_F19/Lab4/curated_data/but_long.txt", delim = "\t")
+write_delim(butyrate_wide,  path = "/Users/Owner/Documents/UMich_Bio201_F19/Lab4/curated_data/butyrate_wide.txt", delim = "\t")
+write_delim(pro_long,  path = "/Users/Owner/Documents/UMich_Bio201_F19/Lab4/curated_data/pro_long.txt", delim = "\t")
+write_delim(propionate_wide,  path = "/Users/Owner/Documents/UMich_Bio201_F19/Lab4/curated_data/propionate_wide.txt", delim = "\t")
+write_delim(scfa_data,  path = "/Users/Owner/Documents/UMich_Bio201_F19/Lab4/curated_data/scfa_data.txt", delim = "\t")
+write_delim(scfa_long,  path = "/Users/Owner/Documents/UMich_Bio201_F19/Lab4/curated_data/scfa_long.txt", delim = "\t")
+write_delim(wkly_means,  path = "/Users/Owner/Documents/UMich_Bio201_F19/Lab4/curated_data/weekly_means.txt", delim = "\t")
 
 # for plots:
-save_plot()
+save_plot(filename = "/Users/Owner/Documents/UMich_Bio201_F19/Lab4/figures/plot_mean_delta_ace.pdf",
+          plot = plot_mean_delta_ace,
+          nrow = 1, ncol = 1, 
+          base_aspect_ratio = 1.1)
+save_plot(filename = "/Users/Owner/Documents/UMich_Bio201_F19/Lab4/figures/plot_mean_delta_but.pdf",
+          plot = plot_mean_delta_but,
+          nrow = 1, ncol = 1, 
+          base_aspect_ratio = 1.1)
+save_plot(filename = "/Users/Owner/Documents/UMich_Bio201_F19/Lab4/figures/plot_mean_delta_pro.pdf",
+          plot = plot_mean_delta_pro,
+          nrow = 1, ncol = 1, 
+          base_aspect_ratio = 1.1)
+save_plot(filename = "/Users/Owner/Documents/UMich_Bio201_F19/Lab4/figures/plot_delta_combined.pdf",
+          plot = plot_delta_combined,
+          nrow =1, ncol = 3, 
+          base_aspect_ratio = 1.1)
+save_plot(filename = "/Users/Owner/Documents/UMich_Bio201_F19/Lab4/figures/plot_total_scfas.pdf",
+          plot = plot_total_scfas,
+          nrow = 1, ncol = 1, 
+          base_aspect_ratio = 1.1)
+save_plot(filename = "/Users/Owner/Documents/UMich_Bio201_F19/Lab4/figures/plot_p1.pdf",
+          plot = p1,
+          nrow = 1, ncol = 1, 
+          base_aspect_ratio = 1.1)
 ```
 
 
@@ -449,43 +611,46 @@ save_plot()
 In preparation for the next section on graphics, we will prepare and export a curated version of the data set. Let’s start by removing participants for which pH and BSS are missing:
 ```{r}
 # import pH data
-pH_data <- read_delim(file = "Lab4/raw_data/pH_indv.txt",
+pH_data <- read_delim(file = "/Users/Owner/Documents/UMich_Bio201_F19/Lab4/raw_data/pH_indv.txt",
                         delim = "\t", col_names = TRUE, trim_ws = TRUE, 
                         na = c("", "NA")) %>%
   rename_all(tolower)
 
 # filter to remove bad measurements based on outside list
-pH_bad <- read_delim(file = "Lab4/raw_data/pH_bad.txt",
+pH_bad <- read_delim(file = "/Users/Owner/Documents/UMich_Bio201_F19/Lab4/raw_data/pH_bad.txt",
                         delim = "\t", col_names = TRUE, trim_ws = TRUE, 
                         na = c("", "NA")) %>% #import list of samples with date discrepencies 
   rename_all(tolower)
 
 pH_qc <- pH_data %>%
   filter(!sample_id %in% pH_bad$sample_id) %>% #drop samples in bad list
-  group_by() %>%
-  summarise() #calculate weekly average
+  group_by(participant_id, ph, study_week, supplement_consumed) %>%
+  summarise(wkly_avg_pH = mean(ph, na.rm = TRUE)) #calculate weekly average
 dim(pH_qc)
+
 ```
 
 ```{r}
 # import BSS
-BSS_data <- read_delim(file = "Lab4/raw_data/BSS_indv.txt",
+BSS_data <- read_delim(file = "/Users/Owner/Documents/UMich_Bio201_F19/Lab4/raw_data/BSS_indv.txt",
                         delim = "\t", col_names = TRUE, trim_ws = TRUE, 
                         na = c("", "NA")) %>%
   rename_all(tolower)
 
 BSS_qc <- BSS_data %>%
   filter(bristol_numeric >= 1 & bristol_numeric <= 7) %>% #filter to remove measurements outside of scale
-  group_by() %>%
-  summarise() #calculate weekly average 
+  group_by(bristol_numeric, participant_id, study_week, supplement_consumed) %>%
+  summarise(wkly_avg_bristol = mean(bristol_numeric, na.rm = TRUE))
+#calculate weekly average 
 dim(BSS_qc)
+View(BSS_qc)
 ```
 
 Select the appropriate type of join to retain participants with either pH or BSS measurements. 
 ```{r}
-pH_BSS_wkly <- join(pH_qc, BSS_qc,
-                    by = c()) %>%
-  mutate() #round avgs to reflect sig figs
+pH_BSS_wkly <- full_join(pH_qc, BSS_qc,
+                    by = c("participant_id", "supplement_consumed", "study_week")) %>%
+  mutate(round()) #round avgs to reflect sig figs
 ```
 
 To make sure that everyone has the same data set, check the number of rows and columns by typing dim().
