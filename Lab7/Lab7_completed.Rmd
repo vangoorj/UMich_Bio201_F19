@@ -1,0 +1,300 @@
+---
+title: "Lab 7 - Alpha diversity metrics"
+author: "Julia Van Goor"
+date: "11/4/2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_knit$set(root.dir = "C:/Users/Owner/Documents/UMich_Bio201_F19/Lab7/")
+```
+
+# Load packages
+```{r Load packages, eval=TRUE, echo=TRUE, message=FALSE, warning=FALSE, results='hide'}
+library(tidyverse)
+library(readxl)
+library(broom)
+library(cowplot)
+library(phyloseq); packageVersion("phyloseq")
+set.seed(7)
+```
+
+
+# Import data
+
+### Sequence variants 
+Import shared/ESV/OTU table and format for phyloseq. Phyloseq works by matching rownames across matrix objects (This is similar to how we matched columns in joins of data frames). A two-dimensional matrix in R looks just like a data frame, however R matrices can be three-dimensional. A three-dimensional object is created when multiple two-dimensional objects are combined (we'll work through this in the upcoming sections). 
+```{r}
+myfunction <- function(x) {
+  x = round ( x * 1000 , digits = 0 )
+  }
+
+sv_table <- read_delim("raw_data/seq_variants_wide.csv",
+                            delim = ",", escape_double = FALSE, 
+                            trim_ws = TRUE, na=c("NA"),
+                            col_types = list()) %>%
+  rename(sample_id = X1) %>% #add missing column name 
+  mutate(sample_id = str_replace(sample_id, 
+                                 pattern = "-", 
+                                 replacement = "_")) %>% #replace hyphens with underscores in sample id column 
+  mutate_if(is.numeric, myfunction) %>% 
+  column_to_rownames(var = "sample_id") %>% #sample IDs need to be made into row names
+  as.matrix() %>% #convert data frame to matrix object
+  otu_table(., taxa_are_rows = FALSE) #specify type of phyloseq object
+```
+
+### Taxa 
+Import taxonomy table and format for phyloseq.
+```{r}
+taxa <- read_delim("raw_data/seqvar_classifications.csv",
+                            delim = ",", escape_double = FALSE, 
+                            trim_ws = TRUE, na=c("NA"),
+                            col_types = list()) %>%
+  column_to_rownames(var = "sv") %>% #sequence variants (OTUs) need to be made into row names 
+  as.matrix() %>%
+  tax_table(.)  #specify type of phyloseq object
+```
+
+### Participant data 
+Import sample data (where a sample is an individual microbiome sample) and format for phyloseq.
+```{r}
+all_data_indv <- read_delim("raw_data/all_data_indv.txt", 
+                            delim = "\t", escape_double = FALSE, 
+                            trim_ws = TRUE, 
+                            col_types = cols(Bristol_numeric = col_number(),
+                                             Bristol_score = col_character(), 
+                                             pH = col_number())) %>%
+  rename_all(tolower) %>% #make all column names lower case
+  distinct(., sample_id, .keep_all = TRUE) %>% #remove duplicate sample ids 
+  column_to_rownames(var = "sample_id") %>% #sample IDs need to be made into row names
+  sample_data(.) #specify type of phyloseq object
+```
+
+
+# Create phyloseq objects
+Phyloseq is an R package that has a suite of functions that make microbial community anaylsis a bit simpler. https://joey711.github.io/phyloseq/index.html It requires the data to be structured in three critical files (1) sequence variant (or OTU) table that contains counts of each sequence; (2) Taxanomic information that contains classifications from Phylum to species for each sequence variant; (3) sample information, which is the participant information we have been working with so far this semester. We imported these three files in the section above, now we have to combine them into one object. 
+```{r}
+physq_obj <- phyloseq(sv_table, taxa, all_data_indv) #combine three phyloseq objects created above 
+
+physq_obj #view dimentions of new object 
+```
+
+
+# Richness
+There are numerous alpha diversity metrics, however we are going to focus on number richness, evenness, and Simpson for our analyses. We will calculate, plot, extract information about alpha diversity with the plot_richness() funciton. 
+
+### Calculate richness
+```{r}
+samp_data <- read_delim("raw_data/all_data_indv.txt", 
+                            delim = "\t", escape_double = FALSE, 
+                            trim_ws = TRUE, 
+                            col_types = cols(Bristol_numeric = col_number(),
+                                             Bristol_score = col_character(), 
+                                             pH = col_number())) %>% #import sample data again
+  rename_all(tolower) %>% #make all column names lower case
+  distinct(., sample_id, .keep_all = TRUE) %>%
+  select(participant_id, sample_number, sample_id, study_week, 
+         semester, supplement_consumed, frequency) #drop extra columns 
+
+# Caculate richness
+richness_df <- physq_obj %>%
+  subset_samples(., semester != "Winter2015") %>% #subset for semesters of interest
+  subset_samples(., study_week == "week1" | study_week == "week3") %>% #subset for weeks of interest
+  estimate_richness(., split = TRUE,  measures = c("Observed")) %>% #calculate richness
+  rownames_to_column(var = "sample_id") %>% #reverse phyloseq object formatting
+  inner_join(samp_data, by = "sample_id") %>% #join with sample data imported above 
+  rename(richness = Observed) %>%
+  group_by(participant_id, study_week, semester, supplement_consumed) %>%
+  summarise(avg_richness = round(mean(richness), digits = 0)) #calculate average richness per person, per week 
+
+# save richness data 
+write_delim(richness_df, 
+            path="curated_data/richness_df.txt",
+            delim = "\t", quote = FALSE, col_names = TRUE)
+#save samp_data
+write_delim(samp_data, 
+            path="curated_data/samp_data.txt",
+            delim = "\t", quote = FALSE, col_names = TRUE)
+```
+
+### Homework 7.1 
+
+We can use these alpha diversity metrics (richness, shannon, or others) in the same manner as any other measured characteristic. So, if we want to determine if the consumption of a supplement changed richness we would use the data frame created in the section above to conduct a paired t-test. 
+```{r}
+# check assumptions 
+# sample size
+richness_df %>%
+  filter(supplement_consumed == "BRMPS") %>% 
+  group_by(study_week) %>% 
+  summarise(sample_size = n()) #week1 n = 97; week3 n =88
+
+# normality
+wk1_rich <- richness_df %>%
+  filter(study_week == "week1", 
+         supplement_consumed == "BRMPS") 
+shapiro.test(wk1_rich$avg_richness) # p-value = 0.90 suggesting this is a normal disrtibution
+ggplot(wk1_rich, aes(x = avg_richness)) + geom_histogram() # histogram shows a normal distribution
+
+wk3_rich <- richness_df %>%
+  filter(study_week == "week3", 
+         supplement_consumed == "BRMPS") 
+shapiro.test(wk3_rich$avg_richness) # p-value = 0.97 suggesting this is a normal disrtibution
+ggplot(wk3_rich, aes(x = avg_richness)) + geom_histogram() # histogram shows a normal distribution
+
+# variances
+var.test(x = wk1_rich$avg_richness, 
+         y = wk3_rich$avg_richness, 
+         alternative = "two.sided") # p-value = 0.46 suggesting that variances are roughly equal
+
+# write code for paired t-test here 
+# join data frames back together
+BRMPS_rich <- inner_join(x = wk1_rich, y = wk3_rich,
+                    by = c("participant_id", 
+                           "semester", "supplement_consumed")) %>%
+  rename(avg_richness_wk1 = avg_richness.x,
+         avg_richness_wk3 = avg_richness.y) %>%
+  select(-starts_with("study_week"))
+
+# run paired t-test 
+t.test(x = BRMPS_rich$avg_richness_wk1, y = BRMPS_rich$avg_richness_wk3, 
+       alternative = "two.sided", paired = TRUE, var.equal = TRUE) 
+
+# p-value = 6.977e-07
+```
+
+Did you conclude the richness changed from week 1 to week 3 in individuals who consumped BRMPS?
+Yes, the low p-value of 6.977e-07 means that we reject the null hypothesis that there is no change from week 1 to week 3 and suggests that the richness did change from week 1 to week 3.
+### Plot richness
+
+```{r}
+# Plot richness
+rich1 <- physq_obj %>%
+  subset_samples(., semester != "Winter2015") %>% 
+  subset_samples(., study_week == "week1" | study_week == "week3") %>%
+  plot_richness(., "study_week", measures = c("Observed")) +
+  facet_grid("semester") +
+  ylab("Richness (Observed ESVs)") + xlab(NULL)
+rich1
+```
+
+This plot is pretty basic. Below we will update the plot with some of our preffered display settings. 
+```{r}
+rich1$layers <- rich1$layers[-1] #drop geom_point 
+
+rich2 <- rich1 +   
+  geom_violin(aes(color = study_week)) + #add violin in color
+  geom_jitter(aes(color = study_week)) +  #add individual points in color 
+  theme(legend.position = "none")
+rich2
+
+save_plot(filename = "figures/plot_rich2.pdf",
+          plot = rich2,
+          nrow = 3, ncol = 1, 
+          base_aspect_ratio = 1.1) #upload plot to your GitHub fork 
+```
+
+
+# Simpson 
+
+To calculate Simpson diveristy index we repeat the process above for calcuating richness, the only thing we have to change is the `measures = c("Simpson")` argument for the plot_richness() and estimate_richness() functions. 
+
+### Calculate simpson
+```{r}
+simpson_df <- physq_obj %>%
+  subset_samples(., semester != "Winter2015") %>% #subset for semesters of interest
+  subset_samples(., study_week == "week1" | study_week == "week3") %>% #subset for weeks of interest
+  estimate_richness(., split = TRUE,  measures = c("Simpson")) %>% #calculate Simpson Diversity
+  rownames_to_column(var = "sample_id") %>% #reverse phyloseq object formatting
+  inner_join(samp_data, by = "sample_id") %>% #join with sample data imported above 
+  rename(simpson = Simpson) %>%
+  group_by(participant_id, study_week, semester, supplement_consumed) %>%
+  #calculate average Simpson Diversity per person, per week
+  summarise(avg_richness = round(mean(simpson), digits = 2))  #use 2 digits since 0-1 scale 
+
+# save Simpson data 
+write_delim(simpson_df, 
+            path="curated_data/simpson_df.txt",
+            delim = "\t", quote = FALSE, col_names = TRUE)
+```
+
+### Homework 7.2 
+Determine if Shannon Diversity differed significanty before vs. during supplement consumption. Write your conclusions in the space below.
+```{r}
+# check assumptions 
+# sample size
+simpson_df %>%
+  filter(supplement_consumed == "BRMPS") %>% 
+  group_by(study_week) %>% 
+  summarise(sample_size = n()) #week1 n = 97; week3 n =88
+
+# normality
+wk1_simp <- simpson_df %>%
+  filter(study_week == "week1", 
+         supplement_consumed == "BRMPS") 
+shapiro.test(wk1_simp$avg_richness) # p-value = 1.619e-10 suggesting this is a normal disrtibution
+ggplot(wk1_simp, aes(x = avg_richness)) + geom_histogram() # histogram shows a skewed and roughly unimodal distribution, so it is an approximately normal distribution
+
+wk3_simp <- simpson_df %>%
+  filter(study_week == "week3", 
+         supplement_consumed == "BRMPS") 
+shapiro.test(wk3_simp$avg_richness) # p-value = 9.946e-12 low so we reject the null hypothesis this is a normal disrtibution
+ggplot(wk3_simp, aes(x = avg_richness)) + geom_histogram() # histogram shows a skewed but unimodal and roughly normal distribution
+
+# variances
+var.test(x = wk1_simp$avg_richness, 
+         y = wk3_simp$avg_richness, 
+         alternative = "two.sided") # p-value = 0.9388 suggesting that variances are roughly equal
+
+# write code for paired t-test here 
+var.test(x = wk1_simp$avg_richness, 
+         y = wk3_simp$avg_richness, 
+         alternative = "two.sided") # p-value = 0.46 suggesting that variances are roughly equal
+
+# write code for paired t-test here 
+# join data frames back together
+BRMPS_simp <- inner_join(x = wk1_simp, y = wk3_simp,
+                    by = c("participant_id", 
+                           "semester", "supplement_consumed")) %>%
+  rename(avg_richness_wk1 = avg_richness.x,
+         avg_richness_wk3 = avg_richness.y) %>%
+  select(-starts_with("study_week"))
+
+# run paired t-test 
+t.test(x = BRMPS_simp$avg_richness_wk1, y = BRMPS_simp$avg_richness_wk3, 
+       alternative = "two.sided", paired = TRUE, var.equal = TRUE) 
+
+
+# p-value = 0.08479 
+```
+Conclusions: Based on the p-value of 0.08479, we reject the null hypothesis that there is no difference in Simpson Diversity from week 1 to week 3 and instead suggest with 90% confidence that there is a statistically significant difference.
+
+### Plot simpson 
+
+```{r}
+# Simpson 
+simp1 <- physq_obj %>%
+  subset_samples(., semester != "Winter2015") %>% 
+  subset_samples(., study_week == "week1" | study_week == "week3") %>%
+  plot_richness(., "study_week", measures = c("Simpson")) +
+  facet_grid("semester") +
+  ylab("Simpson 1-D") + xlab(NULL)
+
+simp1$layers <- simp1$layers[-1] #drop geom_point 
+
+simp2 <- simp1 +   
+  geom_violin(aes(color = study_week)) + #add violin in color
+  geom_jitter(aes(color = study_week)) +  #add individual points in color 
+  theme(legend.position = "none")
+simp2
+
+save_plot(filename = "figures/plot_simp2.pdf",
+          plot = simp2,
+          nrow = 3, ncol = 1, 
+          base_aspect_ratio = 1.1)
+#upload plot to your GitHub fork 
+```
+
+
+-----
+end
